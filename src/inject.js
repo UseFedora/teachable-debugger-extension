@@ -1,35 +1,58 @@
-/**
- * injectScript - Inject internal script to available access to the `window`
- *
- * @param  {type} file_path Local path of the internal script.
- * @param  {type} tag The tag as string, where the script will be append (default: 'body').
- * @see    {@link http://stackoverflow.com/questions/20499994/access-window-variable-from-content-script}
- */
-function injectScript(file_path, node) {
-  const $script = document.createElement('script');
-  $script.setAttribute('type', 'text/javascript');
-  $script.setAttribute('src', file_path);
-  node.appendChild($script);
-}
+const POST_MESSAGE_SIGNATURE = 'teachableDebugger'
+const RUNTIME_MESSAGE_SIGNATURE = 'requestSchoolData'
+const TIMEOUT = 3000
 
-injectScript(chrome.extension.getURL('src/content.js'), document.body);
+class Injector {
+  constructor() {
+    this.handleChromeRuntimeMessage = this.handleChromeRuntimeMessage.bind(this)
 
-// For now let's just trust the order of operations. But it is know this will be
-// prone to breaking in the future if the popup requests the data before the
-// content script sends school data to the inject.
-let hasInitialized = false
-addEventListener('message', (msg) => {
-  if (hasInitialized) {
-    return
+    this.subscribeToEvents()
+    this.injectContentScript()
   }
 
-  hasInitialized = true
-
-  let data = msg.data
-
-  chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-    if (request.msg === 'requestSchoolData') {
-      sendResponse(data)
+  handleChromeRuntimeMessage(request, sender, sendResponse) {
+    if (!this._tries) {
+      this._tries = 1
+    } else {
+      this._tries++
     }
-  })
-})
+
+    // Race condition handling: if the active tab hasn't yet sent data about the
+    // school, let's retry a few times before giving up.
+    if (!this.activeTabData) {
+      if (this._tries * 100 < TIMEOUT) {
+        setTimeout(() => {
+          this.handleChromeRuntimeMessage(request, sender, sendResponse)
+        }, 100)
+      } else {
+        console.log('Could not receive data from Teachable school.')
+      }
+
+      return
+    }
+
+    if (request.msg === RUNTIME_MESSAGE_SIGNATURE) {
+      sendResponse(this.activeTabData)
+    }
+  }
+
+  injectContentScript() {
+    const $script = document.createElement('script')
+
+    $script.setAttribute('src', chrome.extension.getURL('src/content.js'))
+
+    document.body.appendChild($script)
+  }
+
+  subscribeToEvents() {
+    addEventListener('message', (msg) => {
+      if (msg.data.source === POST_MESSAGE_SIGNATURE) {
+        this.activeTabData = msg.data.data
+      }
+    })
+
+    chrome.runtime.onMessage.addListener(this.handleChromeRuntimeMessage)
+  }
+}
+
+new Injector()

@@ -36,7 +36,10 @@
   }
 
   postMessage({
-    customizations: getCodeSnippetsData(),
-    school: getSchoolData(),
+    source: 'teachableDebugger',
+    data: {
+      customizations: getCodeSnippetsData(),
+      school: getSchoolData(),
+    },
   }, location.href);
 })();
