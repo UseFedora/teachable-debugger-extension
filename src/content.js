@@ -7,11 +7,20 @@
 (function() {
   'use strict';
 
-  function getSchoolData() {
-    if (!window.school_data) {
-      return undefined;
-    }
+  // We're using this as the switch to tell if we're on a Teachable school or not.
+  // Can't rely on URL since we support custom URLs.
+  if (!window.school_data) {
+    postMessage({
+      source: 'teachableDebugger',
+      data: {
+        error: 'Not a Teachable school.',
+      },
+    }, location.href);
 
+    return;
+  }
+
+  function getSchoolData() {
     return {
       id: school_data.schoolId,
       staffLink: `https://www.teachablestaff.com/schools/${school_data.schoolId}`,

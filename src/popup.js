@@ -3,6 +3,14 @@ document.addEventListener('DOMContentLoaded', () => {
     chrome.tabs.sendMessage(tabs[0].id, {
       msg: 'requestSchoolData',
     }, (res) => {
+      if (res.error) {
+        document.body.insertAdjacentHTML('beforeend', `
+          <h1>${res.error}</h1>
+        `)
+
+        return
+      }
+
       document.body.insertAdjacentHTML('beforeend', `
         <h1>School Info</h1>
         <p>School id: <pre><code>${res.school.id}</code></pre>
