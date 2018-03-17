@@ -14,6 +14,10 @@ class Injector {
   }
 
   handleChromeRuntimeMessage(request, sender, sendResponse) {
+    if (request.msg !== RUNTIME_MESSAGE_SIGNATURE) {
+      return
+    }
+
     // Don't do the work if we don't have to.
     if (this._invalidWebpage) {
       sendResponse({
@@ -32,7 +36,9 @@ class Injector {
     // Race condition handling: if the active tab hasn't yet sent data about the
     // school, let's retry a few times before giving up.
     if (!this.activeTabData) {
-      if (this._tries * RETRY_INTERVAL < TIMEOUT) {
+      const shouldTryAgain = this._tries * RETRY_INTERVAL < TIMEOUT
+
+      if (shouldTryAgain) {
         setTimeout(() => {
           this.handleChromeRuntimeMessage(request, sender, sendResponse)
         }, RETRY_INTERVAL)
@@ -43,9 +49,7 @@ class Injector {
       return
     }
 
-    if (request.msg === RUNTIME_MESSAGE_SIGNATURE) {
-      sendResponse(this.activeTabData)
-    }
+    sendResponse(this.activeTabData)
   }
 
   injectContentScript() {
